@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ml">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>The Mood-Based Mute Button (Reverse Mute System)</title>
+  <title>The Mood-Based Mute Button with Screen Recorder</title>
   
   <!-- MediaPipe Face Mesh & Camera Utils -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
@@ -82,13 +82,13 @@
     }
 
     video {
-      display: none; /* Hidden, processed via canvas */
+      display: none;
     }
 
     canvas {
       width: 100%;
       height: 100%;
-      transform: scaleX(-1); /* Mirror camera */
+      transform: scaleX(-1);
     }
 
     .status-badge {
@@ -126,12 +126,44 @@
       border-radius: 8px;
       cursor: pointer;
       width: 100%;
-      margin-bottom: 20px;
+      margin-bottom: 12px;
       transition: background 0.2s;
     }
 
     .btn-toggle:hover {
       background: #0369a1;
+    }
+
+    .btn-record {
+      background: #eab308;
+      color: #000;
+      border: none;
+      padding: 14px 28px;
+      font-size: 1.1rem;
+      font-weight: bold;
+      border-radius: 8px;
+      cursor: pointer;
+      width: 100%;
+      margin-bottom: 20px;
+      transition: background 0.2s;
+    }
+
+    .btn-record:disabled {
+      background: #475569;
+      color: #94a3b8;
+      cursor: not-allowed;
+    }
+
+    .btn-record.recording {
+      background: var(--accent-red);
+      color: white;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.7; }
+      100% { opacity: 1; }
     }
 
     .meter-box {
@@ -183,11 +215,10 @@
 
   <header>
     <h1>The Mood-Based Mute Button</h1>
-    <p>Useless Engineering Project: Mutes your audio ONLY when you open your mouth to talk.</p>
+    <p>Reverse Mute Engine with Built-in Video Recording Feature</p>
   </header>
 
   <div class="container">
-    <!-- Camera Viewport -->
     <div class="video-card">
       <div class="canvas-container">
         <video id="input_video" playsinline></video>
@@ -196,11 +227,10 @@
       <div id="statusBadge" class="status-badge">SYSTEM INACTIVE</div>
     </div>
 
-    <!-- Controls & Diagnostics -->
     <div class="controls-card">
       <button id="startBtn" class="btn-toggle" onclick="toggleEngine()">Start Reverse Mute Engine</button>
+      <button id="recordBtn" class="btn-record" onclick="toggleRecording()" disabled>Start Recording Video</button>
 
-      <!-- Live Mic Input Level -->
       <div class="meter-box">
         <div class="meter-label">
           <span>Output Mic Audio Level</span>
@@ -211,10 +241,9 @@
         </div>
       </div>
 
-      <!-- Live Mouth Gap Level -->
       <div class="meter-box">
         <div class="meter-label">
-          <span>Lip Distance (Open Mouth Metric)</span>
+          <span>Lip Distance</span>
           <span id="mouthVal">0.00</span>
         </div>
         <div class="meter-bar-bg">
@@ -222,9 +251,8 @@
         </div>
       </div>
 
-      <!-- Sensitivity Control -->
       <div class="slider-group">
-        <label for="thresholdSlider">Detection Sensitivity Threshold: <span id="threshVal">0.035</span></label>
+        <label for="thresholdSlider">Sensitivity Threshold: <span id="threshVal">0.035</span></label>
         <input type="range" id="thresholdSlider" min="0.015" max="0.08" step="0.002" value="0.035" oninput="updateThreshold(this.value)">
       </div>
     </div>
@@ -232,6 +260,7 @@
 
   <script>
     let isRunning = false;
+    let isRecording = false;
     let camera = null;
     let audioCtx = null;
     let micGainNode = null;
@@ -239,10 +268,14 @@
     let micStream = null;
     let threshold = 0.035;
 
+    let mediaRecorder = null;
+    let recordedChunks = [];
+
     const videoElement = document.getElementById('input_video');
     const canvasElement = document.getElementById('output_canvas');
     const canvasCtx = canvasElement.getContext('2d');
     const statusBadge = document.getElementById('statusBadge');
+    const recordBtn = document.getElementById('recordBtn');
 
     function updateThreshold(val) {
       threshold = parseFloat(val);
@@ -287,7 +320,6 @@
     }
 
     function onResults(results) {
-      // Set canvas resolution dynamically
       canvasElement.width = videoElement.videoWidth || 640;
       canvasElement.height = videoElement.videoHeight || 480;
 
@@ -298,19 +330,14 @@
       if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
         const landmarks = results.multiFaceLandmarks[0];
 
-        // Top lip (landmark 13) and Bottom lip (landmark 14)
         const topLip = landmarks[13];
         const bottomLip = landmarks[14];
-
-        // Calculate Euclidean lip distance normalized
         const lipDistance = Math.hypot(topLip.x - bottomLip.x, topLip.y - bottomLip.y);
 
-        // Update UI metric
         document.getElementById('mouthVal').innerText = lipDistance.toFixed(3);
         let mouthPct = Math.min(100, (lipDistance / 0.1) * 100);
         document.getElementById('mouthFill').style.width = mouthPct + '%';
 
-        // Draw visual dots on lips
         canvasCtx.fillStyle = '#ef4444';
         [13, 14].forEach(idx => {
           const pt = landmarks[idx];
@@ -319,15 +346,12 @@
           canvasCtx.fill();
         });
 
-        // REVERSE MUTE LOGIC
         if (lipDistance > threshold) {
-          // TALKING DETECTED -> MUTE MIC
           if (micGainNode) micGainNode.gain.setValueAtTime(0, audioCtx.currentTime);
           statusBadge.innerText = "MUTED (SPEAKING DETECTED)";
           statusBadge.className = "status-badge muted";
           document.getElementById('audioFill').style.backgroundColor = "var(--accent-red)";
         } else {
-          // SILENT -> UNMUTE MIC
           if (micGainNode) micGainNode.gain.setValueAtTime(1, audioCtx.currentTime);
           statusBadge.innerText = "UNMUTED (SILENT / NEUTRAL)";
           statusBadge.className = "status-badge unmuted";
@@ -370,10 +394,12 @@
           isRunning = true;
           btn.innerText = "Stop Reverse Mute Engine";
           btn.style.background = "#dc2626";
+          recordBtn.disabled = false;
         } catch (err) {
-          alert("Permission denied or device error: " + err.message);
+          alert("Permission error: " + err.message);
         }
       } else {
+        if (isRecording) stopRecording();
         if (camera) camera.stop();
         if (micStream) micStream.getTracks().forEach(t => t.stop());
         if (audioCtx) audioCtx.close();
@@ -381,11 +407,68 @@
         isRunning = false;
         btn.innerText = "Start Reverse Mute Engine";
         btn.style.background = "#0284c7";
+        recordBtn.disabled = true;
         statusBadge.innerText = "SYSTEM INACTIVE";
         statusBadge.className = "status-badge";
       }
     }
+
+    function toggleRecording() {
+      if (!isRecording) {
+        startRecording();
+      } else {
+        stopRecording();
+      }
+    }
+
+    function startRecording() {
+      recordedChunks = [];
+      const canvasStream = canvasElement.captureStream(30);
+      
+      const audioDestination = audioCtx.createMediaStreamDestination();
+      micGainNode.connect(audioDestination);
+
+      const combinedStream = new MediaStream([
+        ...canvasStream.getVideoTracks(),
+        ...audioDestination.stream.getAudioTracks()
+      ]);
+
+      mediaRecorder = new MediaRecorder(combinedStream, { mimeType: 'video/webm' });
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) recordedChunks.push(event.data);
+      };
+
+      mediaRecorder.onstop = saveVideoFile;
+
+      mediaRecorder.start();
+      isRecording = true;
+      recordBtn.innerText = "Stop & Save Video";
+      recordBtn.className = "btn-record recording";
+    }
+
+    function stopRecording() {
+      if (mediaRecorder && isRecording) {
+        mediaRecorder.stop();
+        isRecording = false;
+        recordBtn.innerText = "Start Recording Video";
+        recordBtn.className = "btn-record";
+      }
+    }
+
+    function saveVideoFile() {
+      const blob = new Blob(recordedChunks, { type: 'video/webm' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `useless_project_demo_${Date.now()}.webm`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+    }
   </script>
 </body>
 </html>
-
