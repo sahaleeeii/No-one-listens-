@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>The Mood-Based Mute Button (Reverse Mute System)</title>
+  <title>The Mood-Based Mute Button</title>
   
   <!-- MediaPipe Face Mesh & Camera Utils -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
@@ -15,6 +15,8 @@
       --card-bg: #1e293b;
       --accent-green: #22c55e;
       --accent-red: #ef4444;
+      --accent-blue: #38bdf8;
+      --accent-yellow: #eab308;
       --text-color: #f8fafc;
     }
 
@@ -42,16 +44,18 @@
 
     header h1 {
       font-size: 2.2rem;
-      margin-bottom: 8px;
-      color: #38bdf8;
+      margin-bottom: 6px;
+      color: var(--accent-blue);
     }
 
-    header p {
+    .credits {
       color: #94a3b8;
       font-size: 1rem;
+      line-height: 1.4;
+      font-weight: 500;
     }
 
-    .container {
+    .main-container {
       display: flex;
       flex-wrap: wrap;
       gap: 20px;
@@ -60,7 +64,7 @@
       justify-content: center;
     }
 
-    .video-card, .controls-card {
+    .video-section, .controls-section {
       background: var(--card-bg);
       border-radius: 12px;
       padding: 20px;
@@ -79,16 +83,17 @@
       border-radius: 8px;
       overflow: hidden;
       background: #000;
+      border: 2px solid #334155;
     }
 
     video {
-      display: none; /* Hidden, processed via canvas */
+      display: none;
     }
 
     canvas {
       width: 100%;
       height: 100%;
-      transform: scaleX(-1); /* Mirror camera */
+      transform: scaleX(-1);
     }
 
     .status-badge {
@@ -96,7 +101,7 @@
       padding: 15px;
       border-radius: 8px;
       text-align: center;
-      font-size: 1.3rem;
+      font-size: 1.2rem;
       font-weight: bold;
       margin-top: 15px;
       transition: all 0.2s ease;
@@ -116,9 +121,8 @@
       color: var(--accent-red);
     }
 
-    .btn-toggle {
-      background: #0284c7;
-      color: white;
+    .btn {
+      color: #000;
       border: none;
       padding: 14px 28px;
       font-size: 1.1rem;
@@ -126,12 +130,45 @@
       border-radius: 8px;
       cursor: pointer;
       width: 100%;
-      margin-bottom: 20px;
-      transition: background 0.2s;
+      margin-bottom: 15px;
+      transition: background 0.2s, transform 0.1s;
     }
 
-    .btn-toggle:hover {
-      background: #0369a1;
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn:disabled {
+      background: #475569 !important;
+      color: #94a3b8 !important;
+      cursor: not-allowed;
+    }
+
+    .btn-start {
+      background: var(--accent-blue);
+      color: #000;
+    }
+
+    .btn-start.running {
+      background: #dc2626;
+      color: white;
+    }
+
+    .btn-record {
+      background: var(--accent-yellow);
+      color: #000;
+    }
+
+    .btn-record.recording {
+      background: var(--accent-red);
+      color: white;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+      70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
     }
 
     .meter-box {
@@ -161,49 +198,35 @@
       background: var(--accent-green);
       transition: width 0.05s ease, background-color 0.2s;
     }
-
-    .slider-group {
-      width: 100%;
-      margin-top: 20px;
-    }
-
-    .slider-group label {
-      display: block;
-      font-size: 0.9rem;
-      color: #94a3b8;
-      margin-bottom: 5px;
-    }
-
-    .slider-group input {
-      width: 100%;
-    }
   </style>
 </head>
 <body>
 
   <header>
     <h1>The Mood-Based Mute Button</h1>
-    <p>Useless Engineering Project: Mutes your audio ONLY when you open your mouth to talk.</p>
+    <div class="credits">
+      created by<br>
+      <strong>MSP</strong><br>
+      Student of icet
+    </div>
   </header>
 
-  <div class="container">
-    <!-- Camera Viewport -->
-    <div class="video-card">
+  <div class="main-container">
+    <div class="video-section">
       <div class="canvas-container">
-        <video id="input_video" playsinline></video>
+        <video id="input_video" playsinline muted></video>
         <canvas id="output_canvas"></canvas>
       </div>
       <div id="statusBadge" class="status-badge">SYSTEM INACTIVE</div>
     </div>
 
-    <!-- Controls & Diagnostics -->
-    <div class="controls-card">
-      <button id="startBtn" class="btn-toggle" onclick="toggleEngine()">Start Reverse Mute Engine</button>
+    <div class="controls-section">
+      <button id="startBtn" class="btn btn-start" onclick="toggleEngine()">START</button>
+      <button id="recordBtn" class="btn btn-record" onclick="toggleRecording()" disabled>Start Recording</button>
 
-      <!-- Live Mic Input Level -->
       <div class="meter-box">
         <div class="meter-label">
-          <span>Output Mic Audio Level</span>
+          <span>Output Audio Level</span>
           <span id="audioVal">0%</span>
         </div>
         <div class="meter-bar-bg">
@@ -211,57 +234,56 @@
         </div>
       </div>
 
-      <!-- Live Mouth Gap Level -->
       <div class="meter-box">
         <div class="meter-label">
           <span>Lip Distance (Open Mouth Metric)</span>
           <span id="mouthVal">0.00</span>
         </div>
         <div class="meter-bar-bg">
-          <div id="mouthFill" class="meter-bar-fill" style="background:#38bdf8;"></div>
+          <div id="mouthFill" class="meter-bar-fill" style="background:var(--accent-blue);"></div>
         </div>
-      </div>
-
-      <!-- Sensitivity Control -->
-      <div class="slider-group">
-        <label for="thresholdSlider">Detection Sensitivity Threshold: <span id="threshVal">0.035</span></label>
-        <input type="range" id="thresholdSlider" min="0.015" max="0.08" step="0.002" value="0.035" oninput="updateThreshold(this.value)">
       </div>
     </div>
   </div>
 
   <script>
     let isRunning = false;
+    let isRecording = false;
     let camera = null;
     let audioCtx = null;
     let micGainNode = null;
     let analyser = null;
     let micStream = null;
-    let threshold = 0.035;
+    const threshold = 0.035;
+
+    let mediaRecorder = null;
+    let recordedChunks = [];
 
     const videoElement = document.getElementById('input_video');
     const canvasElement = document.getElementById('output_canvas');
     const canvasCtx = canvasElement.getContext('2d');
     const statusBadge = document.getElementById('statusBadge');
-
-    function updateThreshold(val) {
-      threshold = parseFloat(val);
-      document.getElementById('threshVal').innerText = threshold.toFixed(3);
-    }
+    const recordBtn = document.getElementById('recordBtn');
+    const startBtn = document.getElementById('startBtn');
 
     async function setupAudio() {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
-      const source = audioCtx.createMediaStreamSource(micStream);
-      micGainNode = audioCtx.createGain();
-      analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 256;
+      try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        
+        const source = audioCtx.createMediaStreamSource(micStream);
+        micGainNode = audioCtx.createGain();
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
 
-      source.connect(micGainNode);
-      micGainNode.connect(analyser);
+        source.connect(micGainNode);
+        micGainNode.connect(analyser);
 
-      monitorAudioLevel();
+        monitorAudioLevel();
+      } catch (err) {
+        console.error("Audio Setup Error:", err);
+        alert("Microphone access is required.");
+      }
     }
 
     function monitorAudioLevel() {
@@ -287,7 +309,6 @@
     }
 
     function onResults(results) {
-      // Set canvas resolution dynamically
       canvasElement.width = videoElement.videoWidth || 640;
       canvasElement.height = videoElement.videoHeight || 480;
 
@@ -298,43 +319,35 @@
       if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
         const landmarks = results.multiFaceLandmarks[0];
 
-        // Top lip (landmark 13) and Bottom lip (landmark 14)
         const topLip = landmarks[13];
         const bottomLip = landmarks[14];
-
-        // Calculate Euclidean lip distance normalized
         const lipDistance = Math.hypot(topLip.x - bottomLip.x, topLip.y - bottomLip.y);
 
-        // Update UI metric
         document.getElementById('mouthVal').innerText = lipDistance.toFixed(3);
         let mouthPct = Math.min(100, (lipDistance / 0.1) * 100);
         document.getElementById('mouthFill').style.width = mouthPct + '%';
 
-        // Draw visual dots on lips
-        canvasCtx.fillStyle = '#ef4444';
+        canvasCtx.fillStyle = 'red';
         [13, 14].forEach(idx => {
           const pt = landmarks[idx];
           canvasCtx.beginPath();
-          canvasCtx.arc(pt.x * canvasElement.width, pt.y * canvasElement.height, 4, 0, 2 * Math.PI);
+          canvasCtx.arc(pt.x * canvasElement.width, pt.y * canvasElement.height, 3, 0, 2 * Math.PI);
           canvasCtx.fill();
         });
 
-        // REVERSE MUTE LOGIC
         if (lipDistance > threshold) {
-          // TALKING DETECTED -> MUTE MIC
           if (micGainNode) micGainNode.gain.setValueAtTime(0, audioCtx.currentTime);
           statusBadge.innerText = "MUTED (SPEAKING DETECTED)";
           statusBadge.className = "status-badge muted";
           document.getElementById('audioFill').style.backgroundColor = "var(--accent-red)";
         } else {
-          // SILENT -> UNMUTE MIC
           if (micGainNode) micGainNode.gain.setValueAtTime(1, audioCtx.currentTime);
           statusBadge.innerText = "UNMUTED (SILENT / NEUTRAL)";
           statusBadge.className = "status-badge unmuted";
           document.getElementById('audioFill').style.backgroundColor = "var(--accent-green)";
         }
       } else {
-        statusBadge.innerText = "NO FACE DETECTED";
+        statusBadge.innerText = "where are you I couldn't see you";
         statusBadge.className = "status-badge";
       }
       canvasCtx.restore();
@@ -354,13 +367,14 @@
     faceMesh.onResults(onResults);
 
     async function toggleEngine() {
-      const btn = document.getElementById('startBtn');
       if (!isRunning) {
         try {
+          statusBadge.innerText = "INITIALIZING...";
           await setupAudio();
+          
           camera = new Camera(videoElement, {
             onFrame: async () => {
-              await faceMesh.send({ image: videoElement });
+              if (isRunning) await faceMesh.send({ image: videoElement });
             },
             width: 640,
             height: 480
@@ -368,22 +382,92 @@
           await camera.start();
           
           isRunning = true;
-          btn.innerText = "Stop Reverse Mute Engine";
-          btn.style.background = "#dc2626";
+          startBtn.innerText = "STOP";
+          startBtn.className = "btn btn-start running";
+          recordBtn.disabled = false;
         } catch (err) {
-          alert("Permission denied or device error: " + err.message);
+          alert("Camera or Microphone permission denied: " + err.message);
+          statusBadge.innerText = "ERROR";
         }
       } else {
-        if (camera) camera.stop();
+        if (isRecording) stopRecording();
+        if (camera) await camera.stop();
         if (micStream) micStream.getTracks().forEach(t => t.stop());
-        if (audioCtx) audioCtx.close();
+        if (audioCtx) await audioCtx.close();
         
         isRunning = false;
-        btn.innerText = "Start Reverse Mute Engine";
-        btn.style.background = "#0284c7";
+        startBtn.innerText = "START";
+        startBtn.className = "btn btn-start";
+        recordBtn.disabled = true;
+        recordBtn.innerText = "Start Recording";
+        recordBtn.className = "btn btn-record";
         statusBadge.innerText = "SYSTEM INACTIVE";
         statusBadge.className = "status-badge";
       }
+    }
+
+    function toggleRecording() {
+      if (!isRecording) {
+        startRecording();
+      } else {
+        stopRecording();
+      }
+    }
+
+    function startRecording() {
+      recordedChunks = [];
+      const canvasStream = canvasElement.captureStream(30);
+      
+      const audioDestination = audioCtx.createMediaStreamDestination();
+      micGainNode.connect(audioDestination);
+
+      const combinedStream = new MediaStream([
+        ...canvasStream.getVideoTracks(),
+        ...audioDestination.stream.getAudioTracks()
+      ]);
+
+      try {
+        mediaRecorder = new MediaRecorder(combinedStream, { mimeType: 'video/webm;codecs=vp8,opus' });
+      } catch (e) {
+        mediaRecorder = new MediaRecorder(combinedStream);
+      }
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunks.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = saveVideoFile;
+
+      mediaRecorder.start();
+      isRecording = true;
+      recordBtn.innerText = "Stop & Save Recording";
+      recordBtn.className = "btn btn-record recording";
+    }
+
+    function stopRecording() {
+      if (mediaRecorder && isRecording) {
+        mediaRecorder.stop();
+        isRecording = false;
+        recordBtn.innerText = "Start Recording";
+        recordBtn.className = "btn btn-record";
+      }
+    }
+
+    function saveVideoFile() {
+      const blob = new Blob(recordedChunks, { type: 'video/webm' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `reverse_mute_demo_${Date.now()}.webm`;
+      document.body.appendChild(a);
+      a.click();
+      
+      setTimeout(() => {
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      }, 100);
     }
   </script>
 </body>
