@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="ml">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>The Mood-Based Mute Button: സംസാരിച്ചാൽ മ്യൂട്ട്! (with Recording)</title>
+  <title>The Mood-Based Mute Button (Reverse Mute System)</title>
   
   <!-- MediaPipe Face Mesh & Camera Utils -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
@@ -15,8 +15,6 @@
       --card-bg: #1e293b;
       --accent-green: #22c55e;
       --accent-red: #ef4444;
-      --accent-blue: #38bdf8;
-      --accent-yellow: #eab308;
       --text-color: #f8fafc;
     }
 
@@ -43,9 +41,9 @@
     }
 
     header h1 {
-      font-size: 2rem;
+      font-size: 2.2rem;
       margin-bottom: 8px;
-      color: var(--accent-blue);
+      color: #38bdf8;
     }
 
     header p {
@@ -53,7 +51,7 @@
       font-size: 1rem;
     }
 
-    .main-container {
+    .container {
       display: flex;
       flex-wrap: wrap;
       gap: 20px;
@@ -62,7 +60,7 @@
       justify-content: center;
     }
 
-    .video-section, .controls-section {
+    .video-card, .controls-card {
       background: var(--card-bg);
       border-radius: 12px;
       padding: 20px;
@@ -81,11 +79,10 @@
       border-radius: 8px;
       overflow: hidden;
       background: #000;
-      border: 2px solid #334155;
     }
 
     video {
-      display: none; /* Processing only, not displayed */
+      display: none; /* Hidden, processed via canvas */
     }
 
     canvas {
@@ -99,7 +96,7 @@
       padding: 15px;
       border-radius: 8px;
       text-align: center;
-      font-size: 1.2rem;
+      font-size: 1.3rem;
       font-weight: bold;
       margin-top: 15px;
       transition: all 0.2s ease;
@@ -119,8 +116,9 @@
       color: var(--accent-red);
     }
 
-    .btn {
-      color: #000;
+    .btn-toggle {
+      background: #0284c7;
+      color: white;
       border: none;
       padding: 14px 28px;
       font-size: 1.1rem;
@@ -128,44 +126,12 @@
       border-radius: 8px;
       cursor: pointer;
       width: 100%;
-      margin-bottom: 15px;
-      transition: background 0.2s, transform 0.1s;
+      margin-bottom: 20px;
+      transition: background 0.2s;
     }
 
-    .btn:active {
-      transform: scale(0.98);
-    }
-
-    .btn:disabled {
-      background: #475569 !important;
-      color: #94a3b8 !important;
-      cursor: not-allowed;
-    }
-
-    .btn-start {
-      background: var(--accent-blue);
-      color: #000;
-    }
-    .btn-start.running {
-      background: #dc2626; /* red when stopping */
-      color: white;
-    }
-
-    .btn-record {
-      background: var(--accent-yellow);
-      color: #000;
-    }
-
-    .btn-record.recording {
-      background: var(--accent-red);
-      color: white;
-      animation: pulse 1.5s infinite;
-    }
-
-    @keyframes pulse {
-      0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
-      70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
-      100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    .btn-toggle:hover {
+      background: #0369a1;
     }
 
     .meter-box {
@@ -195,35 +161,49 @@
       background: var(--accent-green);
       transition: width 0.05s ease, background-color 0.2s;
     }
+
+    .slider-group {
+      width: 100%;
+      margin-top: 20px;
+    }
+
+    .slider-group label {
+      display: block;
+      font-size: 0.9rem;
+      color: #94a3b8;
+      margin-bottom: 5px;
+    }
+
+    .slider-group input {
+      width: 100%;
+    }
   </style>
 </head>
 <body>
 
   <header>
     <h1>The Mood-Based Mute Button</h1>
-    <p>നിങ്ങൾ സംസാരിക്കുമ്പോൾ മ്യൂട്ട് ആകും. വീഡിയോ റെക്കോർഡ് ചെയ്ത് ഗാലറിയിൽ സേവ് ചെയ്യാം.</p>
+    <p>Useless Engineering Project: Mutes your audio ONLY when you open your mouth to talk.</p>
   </header>
 
-  <div class="main-container">
-    <!-- വീഡിയോ ഡിസ്പ്ലേ -->
-    <div class="video-section">
+  <div class="container">
+    <!-- Camera Viewport -->
+    <div class="video-card">
       <div class="canvas-container">
-        <video id="input_video" playsinline muted></video>
+        <video id="input_video" playsinline></video>
         <canvas id="output_canvas"></canvas>
       </div>
-      <div id="statusBadge" class="status-badge">കാത്തിരിക്കുന്നു...</div>
+      <div id="statusBadge" class="status-badge">SYSTEM INACTIVE</div>
     </div>
 
-    <!-- കൺട്രോളുകൾ -->
-    <div class="controls-section">
-      <!-- ബട്ടണുകൾ -->
-      <button id="startBtn" class="btn btn-start" onclick="toggleEngine()">1. എൻജിൻ സ്റ്റാർട്ട് ചെയ്യുക</button>
-      <button id="recordBtn" class="btn btn-record" onclick="toggleRecording()" disabled>2. റെക്കോർഡിംഗ് തുടങ്ങുക</button>
+    <!-- Controls & Diagnostics -->
+    <div class="controls-card">
+      <button id="startBtn" class="btn-toggle" onclick="toggleEngine()">Start Reverse Mute Engine</button>
 
-      <!-- ഓഡിയോ മീറ്റർ -->
+      <!-- Live Mic Input Level -->
       <div class="meter-box">
         <div class="meter-label">
-          <span>ഔട്ട്പുട്ട് ഓഡിയോ ലെവൽ</span>
+          <span>Output Mic Audio Level</span>
           <span id="audioVal">0%</span>
         </div>
         <div class="meter-bar-bg">
@@ -231,65 +211,59 @@
         </div>
       </div>
 
-      <!-- ലിപ് ഡിസ്റ്റൻസ് മീറ്റർ -->
+      <!-- Live Mouth Gap Level -->
       <div class="meter-box">
         <div class="meter-label">
-          <span>വായ തുറക്കുന്ന അളവ്</span>
+          <span>Lip Distance (Open Mouth Metric)</span>
           <span id="mouthVal">0.00</span>
         </div>
         <div class="meter-bar-bg">
-          <div id="mouthFill" class="meter-bar-fill" style="background:var(--accent-blue);"></div>
+          <div id="mouthFill" class="meter-bar-fill" style="background:#38bdf8;"></div>
         </div>
       </div>
 
-      <p style="color: #64748b; font-size: 0.85rem; margin-top: 20px; text-align: center;">
-        ശ്രദ്ധിക്കുക: റെക്കോർഡിംഗ് സേവ് ചെയ്യാൻ 'Stop Recording' ബട്ടൺ അമർത്തണം. വീഡിയോ .webm ഫോർമാറ്റിൽ സേവ് ആകും.
-      </p>
+      <!-- Sensitivity Control -->
+      <div class="slider-group">
+        <label for="thresholdSlider">Detection Sensitivity Threshold: <span id="threshVal">0.035</span></label>
+        <input type="range" id="thresholdSlider" min="0.015" max="0.08" step="0.002" value="0.035" oninput="updateThreshold(this.value)">
+      </div>
     </div>
   </div>
 
   <script>
     let isRunning = false;
-    let isRecording = false;
     let camera = null;
     let audioCtx = null;
     let micGainNode = null;
     let analyser = null;
     let micStream = null;
-    const threshold = 0.035; // Sensitivity threshold for mouth opening
-
-    let mediaRecorder = null;
-    let recordedChunks = [];
+    let threshold = 0.035;
 
     const videoElement = document.getElementById('input_video');
     const canvasElement = document.getElementById('output_canvas');
     const canvasCtx = canvasElement.getContext('2d');
     const statusBadge = document.getElementById('statusBadge');
-    const recordBtn = document.getElementById('recordBtn');
-    const startBtn = document.getElementById('startBtn');
 
-    // --- ഓഡിയോ ക്രമീകരണങ്ങൾ ---
-    async function setupAudio() {
-      try {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        
-        const source = audioCtx.createMediaStreamSource(micStream);
-        micGainNode = audioCtx.createGain(); // This will be our mute/unmute node
-        analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 256;
-
-        source.connect(micGainNode);
-        micGainNode.connect(analyser); // Analyser looks at the post-gain audio
-
-        monitorAudioLevel();
-      } catch (err) {
-        console.error("ഓഡിയോ ആക്സസ് ചെയ്യാൻ കഴിഞ്ഞില്ല:", err);
-        alert("മൈക്രോഫോൺ ആക്സസ് അനുവദിക്കുക.");
-      }
+    function updateThreshold(val) {
+      threshold = parseFloat(val);
+      document.getElementById('threshVal').innerText = threshold.toFixed(3);
     }
 
-    // --- ലൈവ് ഓഡിയോ ലെവൽ കാണിക്കാൻ ---
+    async function setupAudio() {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      const source = audioCtx.createMediaStreamSource(micStream);
+      micGainNode = audioCtx.createGain();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+
+      source.connect(micGainNode);
+      micGainNode.connect(analyser);
+
+      monitorAudioLevel();
+    }
+
     function monitorAudioLevel() {
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
       
@@ -312,9 +286,8 @@
       updateMeter();
     }
 
-    // --- ഫേസ് മെഷ് പ്രോസസ്സിംഗ് ---
     function onResults(results) {
-      // റെസല്യൂഷൻ സെറ്റ് ചെയ്യുക
+      // Set canvas resolution dynamically
       canvasElement.width = videoElement.videoWidth || 640;
       canvasElement.height = videoElement.videoHeight || 480;
 
@@ -325,47 +298,48 @@
       if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
         const landmarks = results.multiFaceLandmarks[0];
 
-        // മേൽചുണ്ടും (13) കീഴ്ചുണ്ടും (14) തമ്മിലുള്ള അകലം
+        // Top lip (landmark 13) and Bottom lip (landmark 14)
         const topLip = landmarks[13];
         const bottomLip = landmarks[14];
+
+        // Calculate Euclidean lip distance normalized
         const lipDistance = Math.hypot(topLip.x - bottomLip.x, topLip.y - bottomLip.y);
 
-        // UI അപ്ഡേറ്റ്
+        // Update UI metric
         document.getElementById('mouthVal').innerText = lipDistance.toFixed(3);
         let mouthPct = Math.min(100, (lipDistance / 0.1) * 100);
         document.getElementById('mouthFill').style.width = mouthPct + '%';
 
-        // റെഡ് ഡോട്ട് ഇടുക (optional visual cue)
-        canvasCtx.fillStyle = 'red';
+        // Draw visual dots on lips
+        canvasCtx.fillStyle = '#ef4444';
         [13, 14].forEach(idx => {
           const pt = landmarks[idx];
           canvasCtx.beginPath();
-          canvasCtx.arc(pt.x * canvasElement.width, pt.y * canvasElement.height, 3, 0, 2 * Math.PI);
+          canvasCtx.arc(pt.x * canvasElement.width, pt.y * canvasElement.height, 4, 0, 2 * Math.PI);
           canvasCtx.fill();
         });
 
-        // --- മ്യൂട്ട്/അൺമ്യൂട്ട് ലോജിക് ---
+        // REVERSE MUTE LOGIC
         if (lipDistance > threshold) {
-          // സംസാരിക്കുന്നു -> മ്യൂട്ട് ചെയ്യുക
+          // TALKING DETECTED -> MUTE MIC
           if (micGainNode) micGainNode.gain.setValueAtTime(0, audioCtx.currentTime);
-          statusBadge.innerText = "മ്യൂട്ട്ഡ്! (നിങ്ങൾ സംസാരിക്കുന്നു)";
+          statusBadge.innerText = "MUTED (SPEAKING DETECTED)";
           statusBadge.className = "status-badge muted";
           document.getElementById('audioFill').style.backgroundColor = "var(--accent-red)";
         } else {
-          // മിണ്ടാതിരിക്കുന്നു -> അൺമ്യൂട്ട് ചെയ്യുക
+          // SILENT -> UNMUTE MIC
           if (micGainNode) micGainNode.gain.setValueAtTime(1, audioCtx.currentTime);
-          statusBadge.innerText = "അൺമ്യൂട്ട്ഡ്! (മിണ്ടാതിരിക്കുന്നു)";
+          statusBadge.innerText = "UNMUTED (SILENT / NEUTRAL)";
           statusBadge.className = "status-badge unmuted";
           document.getElementById('audioFill').style.backgroundColor = "var(--accent-green)";
         }
       } else {
-        statusBadge.innerText = "മുഖം കാണുന്നില്ല!";
+        statusBadge.innerText = "NO FACE DETECTED";
         statusBadge.className = "status-badge";
       }
       canvasCtx.restore();
     }
 
-    // --- MediaPipe സെറ്റപ്പ് ---
     const faceMesh = new FaceMesh({
       locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
     });
@@ -379,16 +353,14 @@
 
     faceMesh.onResults(onResults);
 
-    // --- എൻജിൻ സ്റ്റാർട്ട്/സ്റ്റോപ്പ് ---
     async function toggleEngine() {
+      const btn = document.getElementById('startBtn');
       if (!isRunning) {
         try {
-          statusBadge.innerText = "ക്യാമറയും മൈക്കും റെഡിയാക്കുന്നു...";
           await setupAudio();
-          
           camera = new Camera(videoElement, {
             onFrame: async () => {
-              if (isRunning) await faceMesh.send({ image: videoElement });
+              await faceMesh.send({ image: videoElement });
             },
             width: 640,
             height: 480
@@ -396,106 +368,22 @@
           await camera.start();
           
           isRunning = true;
-          startBtn.innerText = "എൻജിൻ സ്റ്റോപ്പ് ചെയ്യുക";
-          startBtn.className = "btn btn-start running";
-          recordBtn.disabled = false; // Enable recording button
+          btn.innerText = "Stop Reverse Mute Engine";
+          btn.style.background = "#dc2626";
         } catch (err) {
-          alert("ക്യാമറ ആക്സസ് അനുവദിക്കുക: " + err.message);
-          statusBadge.innerText = "പിശക്!";
+          alert("Permission denied or device error: " + err.message);
         }
       } else {
-        // Stop everything
-        if (isRecording) stopRecording();
-        if (camera) await camera.stop();
+        if (camera) camera.stop();
         if (micStream) micStream.getTracks().forEach(t => t.stop());
-        if (audioCtx) await audioCtx.close();
+        if (audioCtx) audioCtx.close();
         
         isRunning = false;
-        startBtn.innerText = "1. എൻജിൻ സ്റ്റാർട്ട് ചെയ്യുക";
-        startBtn.className = "btn btn-start";
-        recordBtn.disabled = true;
-        recordBtn.innerText = "2. റെക്കോർഡിംഗ് തുടങ്ങുക";
-        recordBtn.className = "btn btn-record";
-        statusBadge.innerText = "കാത്തിരിക്കുന്നു...";
+        btn.innerText = "Start Reverse Mute Engine";
+        btn.style.background = "#0284c7";
+        statusBadge.innerText = "SYSTEM INACTIVE";
         statusBadge.className = "status-badge";
       }
-    }
-
-    // --- റെക്കോർഡിംഗ് സ്റ്റാർട്ട്/സ്റ്റോപ്പ് ---
-    function toggleRecording() {
-      if (!isRecording) {
-        startRecording();
-      } else {
-        stopRecording();
-      }
-    }
-
-    function startRecording() {
-      recordedChunks = [];
-      
-      // 1. ക്യാൻവാസിൽ നിന്നുള്ള വീഡിയോ സ്ട്രീം (30fps)
-      const canvasStream = canvasElement.captureStream(30);
-      
-      // 2. പ്രൊസസ്സ് ചെയ്ത ഓഡിയോ സ്ട്രീം (Muted/Unmuted Audio)
-      const audioDestination = audioCtx.createMediaStreamDestination();
-      micGainNode.connect(audioDestination); // Connect the gain node output to recording dest
-
-      // 3. രണ്ടും കൂടി യോജിപ്പിക്കുക
-      const combinedStream = new MediaStream([
-        ...canvasStream.getVideoTracks(),
-        ...audioDestination.stream.getAudioTracks()
-      ]);
-
-      // 4. MediaRecorder സെറ്റപ്പ്
-      try {
-        mediaRecorder = new MediaRecorder(combinedStream, { mimeType: 'video/webm;codecs=vp8,opus' });
-      } catch (e) {
-        // Fallback mimeType if webm not fully supported
-        mediaRecorder = new MediaRecorder(combinedStream);
-      }
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          recordedChunks.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = saveVideoFile;
-
-      // റെക്കോർഡിംഗ് തുടങ്ങുക
-      mediaRecorder.start();
-      isRecording = true;
-      recordBtn.innerText = "റെക്കോർഡിംഗ് നിർത്തുക (സേവ് ചെയ്യും)";
-      recordBtn.className = "btn btn-record recording";
-      console.log("റെക്കോർഡിംഗ് തുടങ്ങി...");
-    }
-
-    function stopRecording() {
-      if (mediaRecorder && isRecording) {
-        mediaRecorder.stop();
-        isRecording = false;
-        recordBtn.innerText = "2. റെക്കോർഡിംഗ് തുടങ്ങുക";
-        recordBtn.className = "btn btn-record";
-        console.log("റെക്കോർഡിംഗ് നിർത്തി.");
-      }
-    }
-
-    // --- റെക്കോർഡ് ചെയ്ത വീഡിയോ സേവ് ചെയ്യുക ---
-    function saveVideoFile() {
-      console.log("വീഡിയോ സേവ് ചെയ്യുന്നു...");
-      const blob = new Blob(recordedChunks, { type: 'video/webm' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `reverse_mute_demo_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.webm`;
-      document.body.appendChild(a);
-      a.click();
-      
-      // ക്ലീൻ അപ്പ്
-      setTimeout(() => {
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-      }, 100);
     }
   </script>
 </body>
