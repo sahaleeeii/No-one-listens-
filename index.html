@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Mood-Based Mute Button (Reverse Mute System)</title>
+  
+  <!-- MediaPipe Face Mesh & Camera Utils -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+
+  <style>
+    :root {
+      --bg-color: #0f172a;
+      --card-bg: #1e293b;
+      --accent-green: #22c55e;
+      --accent-red: #ef4444;
+      --text-color: #f8fafc;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 25px;
+    }
+
+    header h1 {
+      font-size: 2.2rem;
+      margin-bottom: 8px;
+      color: #38bdf8;
+    }
+
+    header p {
+      color: #94a3b8;
+      font-size: 1rem;
+    }
+
+    .container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      max-width: 1000px;
+      width: 100%;
+      justify-content: center;
+    }
+
+    .video-card, .controls-card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+      flex: 1 1 450px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .canvas-container {
+      position: relative;
+      width: 100%;
+      max-width: 480px;
+      aspect-ratio: 4/3;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #000;
+    }
+
+    video {
+      display: none; /* Hidden, processed via canvas */
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      transform: scaleX(-1); /* Mirror camera */
+    }
+
+    .status-badge {
+      width: 100%;
+      padding: 15px;
+      border-radius: 8px;
+      text-align: center;
+      font-size: 1.3rem;
+      font-weight: bold;
+      margin-top: 15px;
+      transition: all 0.2s ease;
+      background: #334155;
+      color: #94a3b8;
+    }
+
+    .status-badge.unmuted {
+      background: rgba(34, 197, 94, 0.2);
+      border: 2px solid var(--accent-green);
+      color: var(--accent-green);
+    }
+
+    .status-badge.muted {
+      background: rgba(239, 68, 68, 0.2);
+      border: 2px solid var(--accent-red);
+      color: var(--accent-red);
+    }
+
+    .btn-toggle {
+      background: #0284c7;
+      color: white;
+      border: none;
+      padding: 14px 28px;
+      font-size: 1.1rem;
+      font-weight: bold;
+      border-radius: 8px;
+      cursor: pointer;
+      width: 100%;
+      margin-bottom: 20px;
+      transition: background 0.2s;
+    }
+
+    .btn-toggle:hover {
+      background: #0369a1;
+    }
+
+    .meter-box {
+      width: 100%;
+      margin-top: 15px;
+    }
+
+    .meter-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.9rem;
+      color: #94a3b8;
+      margin-bottom: 5px;
+    }
+
+    .meter-bar-bg {
+      width: 100%;
+      height: 16px;
+      background: #334155;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .meter-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--accent-green);
+      transition: width 0.05s ease, background-color 0.2s;
+    }
+
+    .slider-group {
+      width: 100%;
+      margin-top: 20px;
+    }
+
+    .slider-group label {
+      display: block;
+      font-size: 0.9rem;
+      color: #94a3b8;
+      margin-bottom: 5px;
+    }
+
+    .slider-group input {
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>The Mood-Based Mute Button</h1>
+    <p>Useless Engineering Project: Mutes your audio ONLY when you open your mouth to talk.</p>
+  </header>
+
+  <div class="container">
+    <!-- Camera Viewport -->
+    <div class="video-card">
+      <div class="canvas-container">
+        <video id="input_video" playsinline></video>
+        <canvas id="output_canvas"></canvas>
+      </div>
+      <div id="statusBadge" class="status-badge">SYSTEM INACTIVE</div>
+    </div>
+
+    <!-- Controls & Diagnostics -->
+    <div class="controls-card">
+      <button id="startBtn" class="btn-toggle" onclick="toggleEngine()">Start Reverse Mute Engine</button>
+
+      <!-- Live Mic Input Level -->
+      <div class="meter-box">
+        <div class="meter-label">
+          <span>Output Mic Audio Level</span>
+          <span id="audioVal">0%</span>
+        </div>
+        <div class="meter-bar-bg">
+          <div id="audioFill" class="meter-bar-fill"></div>
+        </div>
+      </div>
+
+      <!-- Live Mouth Gap Level -->
+      <div class="meter-box">
+        <div class="meter-label">
+          <span>Lip Distance (Open Mouth Metric)</span>
+          <span id="mouthVal">0.00</span>
+        </div>
+        <div class="meter-bar-bg">
+          <div id="mouthFill" class="meter-bar-fill" style="background:#38bdf8;"></div>
+        </div>
+      </div>
+
+      <!-- Sensitivity Control -->
+      <div class="slider-group">
+        <label for="thresholdSlider">Detection Sensitivity Threshold: <span id="threshVal">0.035</span></label>
+        <input type="range" id="thresholdSlider" min="0.015" max="0.08" step="0.002" value="0.035" oninput="updateThreshold(this.value)">
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let isRunning = false;
+    let camera = null;
+    let audioCtx = null;
+    let micGainNode = null;
+    let analyser = null;
+    let micStream = null;
+    let threshold = 0.035;
+
+    const videoElement = document.getElementById('input_video');
+    const canvasElement = document.getElementById('output_canvas');
+    const canvasCtx = canvasElement.getContext('2d');
+    const statusBadge = document.getElementById('statusBadge');
+
+    function updateThreshold(val) {
+      threshold = parseFloat(val);
+      document.getElementById('threshVal').innerText = threshold.toFixed(3);
+    }
+
+    async function setupAudio() {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      const source = audioCtx.createMediaStreamSource(micStream);
+      micGainNode = audioCtx.createGain();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+
+      source.connect(micGainNode);
+      micGainNode.connect(analyser);
+
+      monitorAudioLevel();
+    }
+
+    function monitorAudioLevel() {
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      
+      function updateMeter() {
+        if (!isRunning) return;
+        analyser.getByteFrequencyData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          sum += dataArray[i];
+        }
+        let average = sum / dataArray.length;
+        let percentage = Math.min(100, Math.round((average / 128) * 100));
+
+        const fill = document.getElementById('audioFill');
+        fill.style.width = percentage + '%';
+        document.getElementById('audioVal').innerText = percentage + '%';
+
+        requestAnimationFrame(updateMeter);
+      }
+      updateMeter();
+    }
+
+    function onResults(results) {
+      // Set canvas resolution dynamically
+      canvasElement.width = videoElement.videoWidth || 640;
+      canvasElement.height = videoElement.videoHeight || 480;
+
+      canvasCtx.save();
+      canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+      canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+      if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+        const landmarks = results.multiFaceLandmarks[0];
+
+        // Top lip (landmark 13) and Bottom lip (landmark 14)
+        const topLip = landmarks[13];
+        const bottomLip = landmarks[14];
+
+        // Calculate Euclidean lip distance normalized
+        const lipDistance = Math.hypot(topLip.x - bottomLip.x, topLip.y - bottomLip.y);
+
+        // Update UI metric
+        document.getElementById('mouthVal').innerText = lipDistance.toFixed(3);
+        let mouthPct = Math.min(100, (lipDistance / 0.1) * 100);
+        document.getElementById('mouthFill').style.width = mouthPct + '%';
+
+        // Draw visual dots on lips
+        canvasCtx.fillStyle = '#ef4444';
+        [13, 14].forEach(idx => {
+          const pt = landmarks[idx];
+          canvasCtx.beginPath();
+          canvasCtx.arc(pt.x * canvasElement.width, pt.y * canvasElement.height, 4, 0, 2 * Math.PI);
+          canvasCtx.fill();
+        });
+
+        // REVERSE MUTE LOGIC
+        if (lipDistance > threshold) {
+          // TALKING DETECTED -> MUTE MIC
+          if (micGainNode) micGainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+          statusBadge.innerText = "MUTED (SPEAKING DETECTED)";
+          statusBadge.className = "status-badge muted";
+          document.getElementById('audioFill').style.backgroundColor = "var(--accent-red)";
+        } else {
+          // SILENT -> UNMUTE MIC
+          if (micGainNode) micGainNode.gain.setValueAtTime(1, audioCtx.currentTime);
+          statusBadge.innerText = "UNMUTED (SILENT / NEUTRAL)";
+          statusBadge.className = "status-badge unmuted";
+          document.getElementById('audioFill').style.backgroundColor = "var(--accent-green)";
+        }
+      } else {
+        statusBadge.innerText = "NO FACE DETECTED";
+        statusBadge.className = "status-badge";
+      }
+      canvasCtx.restore();
+    }
+
+    const faceMesh = new FaceMesh({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+    });
+
+    faceMesh.setOptions({
+      maxNumFaces: 1,
+      refineLandmarks: true,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
+
+    faceMesh.onResults(onResults);
+
+    async function toggleEngine() {
+      const btn = document.getElementById('startBtn');
+      if (!isRunning) {
+        try {
+          await setupAudio();
+          camera = new Camera(videoElement, {
+            onFrame: async () => {
+              await faceMesh.send({ image: videoElement });
+            },
+            width: 640,
+            height: 480
+          });
+          await camera.start();
+          
+          isRunning = true;
+          btn.innerText = "Stop Reverse Mute Engine";
+          btn.style.background = "#dc2626";
+        } catch (err) {
+          alert("Permission denied or device error: " + err.message);
+        }
+      } else {
+        if (camera) camera.stop();
+        if (micStream) micStream.getTracks().forEach(t => t.stop());
+        if (audioCtx) audioCtx.close();
+        
+        isRunning = false;
+        btn.innerText = "Start Reverse Mute Engine";
+        btn.style.background = "#0284c7";
+        statusBadge.innerText = "SYSTEM INACTIVE";
+        statusBadge.className = "status-badge";
+      }
+    }
+  </script>
+</body>
+</html>
+
